@@ -45,7 +45,7 @@ def tokenize(path: str, file_encoding:str) -> list[str]:
     list[str]: Une liste de chaînes représentant les commandes extraites du fichier.
     """
     
-    with open (path, "r", encoding=file_encoding) as file:
+    with open(path, "r", encoding=file_encoding) as file:
         content = file.readlines()
         lines = list()
         for line in content:
@@ -62,7 +62,7 @@ def tokenize(path: str, file_encoding:str) -> list[str]:
                 commands.append(item)
     return commands
 
-def get_nodes_edges (code:list) -> tuple:
+def get_nodes_edges (code:list[str]) -> tuple[str, str]:
     """
     Analyse une liste de commandes pour extraire les nœuds et les arcs d'un graphe.
 
@@ -86,8 +86,8 @@ def get_nodes_edges (code:list) -> tuple:
         if command == "boucle" or command == "si":
             open_bracket.append(i)
         elif command == "}":
-            match = (open_bracket[-1], i)
-            loops.append(match)
+            matching = (open_bracket[-1], i)
+            loops.append(matching)
             open_bracket = open_bracket[:-1]
         
         # Associer des noms aux nœuds
@@ -122,6 +122,7 @@ def save_json(nodes:dict, edges:list, json_file:str) -> None:
     Return:
     None: Cette fonction ne retourne rien. Elle effectue une opération d'écriture dans un fichier.
     """
+    
     data = dict()
     data["nodes"] = nodes
     data["edges"] = edges
