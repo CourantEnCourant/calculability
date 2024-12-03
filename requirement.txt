@@ -1,0 +1,5 @@
+argparse
+chardet
+networkx
+matplotlib
+scipy
