@@ -1,7 +1,7 @@
 # MTdv compiler v0.1
 
 ## General
-* MTdv compiler is an interpreter for a French esoteric programming language called "Machine de Turing de del Vigna". It allows executing scripts written in MTdv
+* MTdv compiler is an interpreter for a French turing-tarpit called "Machine de Turing de del Vigna". It allows executing scripts written in MTdv
 * Examples of programs written in this language in `./ts_scripts`
 * Interpreter written in Python in `./scripts`
 
