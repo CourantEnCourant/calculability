@@ -16,4 +16,4 @@
 * Use `python script/execute.py -h` for detailed documentation
 * Default value provided for all options
 * An example of advanced usage, to calculate `8 * 9`:
-  * `python execute.py --tape_length 200 --allowing_step 12000 --script ../ts_scripts/multiplicateur.1.TS --args_turing 8 9`
+  * `python execute.py --tape_length 200 --allowing_step 50000 --script ../ts_scripts/multiplicateur.1.TS --args_turing 8 9`
