@@ -5,6 +5,7 @@
 * Examples of programs written in MTdv in `./ts_scripts`
 * All Python scripts in `./scripts`
 * For how to use Python scripts, use `python [script.py] -h` for help
+* All compiled `.py` files in `./exec`
 
 ## MTdv language
 * Documentation to be written...
@@ -18,7 +19,7 @@
   * `python execute.py --tape_length 200 --allowing_step 50000 --script ../ts_scripts/multiplicateur.1.TS --args_turing 8 9`
 
 ## Compiler
-* Use `python compile.py [-s ts_script.TS]` to compile a .TS script into `./exec/`
+* Use `python compile.py [-s ts_script.TS]` to compile a .TS script into `./exec`
 * Use `python ./exec/ts_script.py [args]` to execute the compiled script
 * Example of usage, to calculate `3 * 5`:
   * `python compile.py -s ../ts_scripts/multiplicateur.1.TS`
