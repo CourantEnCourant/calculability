@@ -110,13 +110,13 @@ class TuringMachine:
                 command_stack.append(command)
                 command.left = self.commands[i + 1]
             elif command.value == "}":
-                match = command_stack.pop()
-                if match.value == "si":
+                match_command = command_stack.pop()
+                if match_command.value == "si":
                     command.left = self.commands[i + 1]
-                    match.right = self.commands[i + 1]
-                if match.value == "boucle":
-                    command.left = match
-                    match.right = self.commands[i + 1]
+                    match_command.right = self.commands[i + 1]
+                if match_command.value == "boucle":
+                    command.left = match_command
+                    match_command.right = self.commands[i + 1]
             elif command.value == "fin":
                 if not command_stack:
                     command.left = self.commands[-1]
