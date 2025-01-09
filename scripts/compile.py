@@ -125,7 +125,8 @@ class Compiler:
         final_code = "\n".join(template)
         with open(output_file, 'w') as file:
             file.write(final_code)
-        print(f"MTdv code succesfully compiled to {output_file}")
+        print(f"MTdv code successfully compiled to {output_file}")
+
 
 def main(script: Path):
     # Logger config
