@@ -1,7 +1,5 @@
 """"""
-import logging
 from pathlib import Path
-from typing import Sequence, Optional
 
 
 class Compiler:
@@ -57,17 +55,11 @@ class Compiler:
         if not self.commands:
             raise Exception(f"No commands found")
         flag = True
-        # Check if script ends by "#"
-        if self.commands[-1] != "#":
-            raise Exception('Script should end with "#"')
         # Check "si" followed by "(x)"
         for i, command in enumerate(self.commands):
-            try:
-                if command == "si" and self.commands[i + 1] not in ["(0)", "(1)"]:
-                    flag = False
-                    print('"si" and (x) not matching')
-            except Exception as e:
-                raise Exception(e)
+            if command == "si" and self.commands[i + 1] not in ["(0)", "(1)"]:
+                flag = False
+                print('"si" and (x) not matching')
         # Check curly brackets matching
         syntax_stack = []
         for command in self.commands:
@@ -78,7 +70,7 @@ class Compiler:
             if command == "}":
                 try:
                     syntax_stack.pop()
-                except Exception:
+                except IndexError:
                     flag = False
                     print("Curly brackets not matching")
         if syntax_stack:
@@ -136,7 +128,8 @@ class Compiler:
             current_loop_count = self.loop_stack.pop()
             self.template.append(self.indent_num * self.indent + f"loop_{current_loop_count}()")  # Recursive call
             self.indent_num -= 2
-            self.template.append(self.indent_num * self.indent + f"in_loop_{current_loop_count} = True")  # Set global variable back to allow next loop
+            self.template.append(
+                self.indent_num * self.indent + f"in_loop_{current_loop_count} = True")  # Reset global variable back to allow next loop
             self.indent_num -= 1
             self.template.append(self.indent_num * self.indent + f"loop_{current_loop_count}()")  # Function execution
         self.command_index += 1
@@ -150,12 +143,11 @@ class Compiler:
             # template.append(indent_num * indent + "return None")
             self.indent_num -= 1
             self.template.append(self.indent_num * self.indent + "else:")
-            self.indent_num += 2
+            self.indent_num += 1  # For "else"
+            self.indent_num += 1  # Match the "si }" indent loss
         self.command_index += 1
 
-    def compile(self, output_file: Path):
-        if not self.check_grammar():
-            raise Exception(f"Syntax error")
+    def __create_template_head(self):
         # `sys` module
         self.template = ["import sys",
                          "args = sys.argv[1:]\n"]
@@ -177,14 +169,34 @@ class Compiler:
                               "    else:",
                               '        print("")',
                               "        show_tape_index = 0\n\n"])
-        # Parse "boucle" for global variables
-        boucle_count = sum([1 for command in self.commands if command == "boucle"])
-        for i in range(boucle_count):
-            self.template.append(f"in_loop_{i + 1} = True")
         # Print initial tape
         self.template.extend(['\nprint(f"Initial tape:")',
                               'show_tape()\n'])
-        # Execution block
+
+    def __count_loop_global_var(self):
+        """Count "boucle" to generate enough `in_loop_num = True` global variables"""
+        boucle_count = sum([1 for command in self.commands if command == "boucle"])
+        for i in range(boucle_count):
+            self.template.append(f"in_loop_{i + 1} = True")
+
+    def __output_compiled_code(self, output_file):
+        # print final tape
+        self.template += ['print(f"Final tape:")',
+                          'show_tape()\n']
+
+        final_code = "\n".join(self.template)
+        with open(output_file, 'w') as file:
+            file.write(final_code)
+        print(f"MTdv code successfully compiled to {output_file}")
+
+    def compile(self, output_file: Path):
+        if not self.check_grammar():
+            raise Exception(f"Syntax error")
+        # Preparation
+        self.__create_template_head()
+        self.__count_loop_global_var()
+
+        # Compilation
         commands = ["I", "0", "1", "D", "G", "si", "boucle", "fin", "}", "(0)", "(1)"]
         for command in self.commands:
             if command == "#":  # Won't parse anything after "#"
@@ -194,18 +206,10 @@ class Compiler:
             else:
                 raise Exception(f"Invalid command: {command}")
 
-        self.template += ['print(f"Final tape:")',
-                          'show_tape()\n']
-
-        final_code = "\n".join(self.template)
-        with open(output_file, 'w') as file:
-            file.write(final_code)
-        print(f"MTdv code successfully compiled to {output_file}")
+        self.__output_compiled_code(output_file)
 
 
 def main(script: Path):
-    # Logger config
-    logging.basicConfig(level=logging.INFO)
     # Compiler preparation
     compiler = Compiler()
     compiler.read_clean(script)
