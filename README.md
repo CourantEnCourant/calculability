@@ -1,4 +1,4 @@
-# MTdv programming language v0.3
+# MTdv programming language v1.0
 
 ## General
 * MTdv compiler is an interpreter/compiler for a French turing-tarpit called "Machine de Turing de del Vigna". It allows compiling and executing scripts written in MTdv
@@ -26,5 +26,5 @@
   * `python ../exec/multiplicateur.1.py 3 5`
 
 ## Update journal:
-* Basically replaced `for` and `while` with recursive functions
-* `return` to be replaced on next update
+* This version corresponds to "Question I"
+* `return` eliminated
