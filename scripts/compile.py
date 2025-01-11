@@ -152,6 +152,8 @@ class Compiler:
                     current_loop_count = loop_stack.pop()
                     template.append(indent_num * indent + f"loop_{current_loop_count}()")  # Recursive call
                     indent_num -= 2
+                    template.append(indent_num * indent + f"in_loop_{current_loop_count} = True")  # Set global variable back to allow next loop
+                    indent_num -= 1
                     template.append(indent_num * indent + f"loop_{current_loop_count}()")  # Function execution
                 else:
                     raise Exception("Illegal command in command stack")
@@ -159,10 +161,12 @@ class Compiler:
                 if not loop_stack:
                     template.append(indent_num * indent + "quit()")
                 else:
-                    # loop_stack.pop()
                     current_loop_count = loop_stack[-1]
-                    # template.append(indent_num * indent + f"in_loop_{current_loop_count} = False")
-                    template.append(indent_num * indent + "return None")
+                    template.append(indent_num * indent + f"in_loop_{current_loop_count} = False")
+                    # template.append(indent_num * indent + "return None")
+                    indent_num -= 1
+                    template.append(indent_num * indent + "else:")
+                    indent_num += 2
             else:
                 raise Exception(f"Invalid command: {command}")
 
