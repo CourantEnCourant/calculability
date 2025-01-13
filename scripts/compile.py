@@ -109,42 +109,30 @@ class Compiler:
         """Already parsed by 'si'"""
         self.command_index += 1
 
-    def __evaluate_boucle(self):
-        self.command_stack.append("boucle")
-        self.loop_count += 1
-        self.loop_stack.append(self.loop_count)
-        self.template.append(self.indent_num * self.indent + f"def loop_{self.loop_count}():")
-        self.indent_num += 1  # Function definition indent
-        self.template.append(self.indent_num * self.indent + f"global in_loop_{self.loop_count}, tape, io_head_index")
-        self.template.append(self.indent_num * self.indent + f"if in_loop_{self.loop_count}:")
-        self.indent_num += 1  # Function recursive-call indent
-        self.command_index += 1
-
     def __evaluate_right_bracket(self):
         match_command = self.command_stack.pop()
         if match_command == "si":
             self.indent_num -= 1
         elif match_command == "boucle":
             current_loop_count = self.loop_stack.pop()
-            self.template.append(self.indent_num * self.indent + f"loop_{current_loop_count}()")  # Recursive call
-            self.indent_num -= 2
-            self.template.append(
-                self.indent_num * self.indent + f"in_loop_{current_loop_count} = True")  # Reset global variable back to allow next loop
+            self.template.append(self.indent_num * self.indent + f"return loop_{current_loop_count}(tape, io_head_index)")  # Recursive call
             self.indent_num -= 1
-            self.template.append(self.indent_num * self.indent + f"loop_{current_loop_count}()")  # Function execution
+            self.template.append(self.indent_num * self.indent + f"tape, io_head_index = loop_{current_loop_count}(tape, io_head_index)")  # Function execution
+        self.command_index += 1
+
+    def __evaluate_boucle(self):
+        self.command_stack.append("boucle")
+        self.loop_count += 1
+        self.loop_stack.append(self.loop_count)
+        self.template.append(self.indent_num * self.indent + f"def loop_{self.loop_count}(tape, io_head_index):")
+        self.indent_num += 1  # Function definition indent
         self.command_index += 1
 
     def __evaluate_fin(self):
         if not self.loop_stack:
             self.template.append(self.indent_num * self.indent + "quit()")
         else:
-            current_loop_count = self.loop_stack[-1]
-            self.template.append(self.indent_num * self.indent + f"in_loop_{current_loop_count} = False")
-            # template.append(indent_num * indent + "return None")
-            self.indent_num -= 1
-            self.template.append(self.indent_num * self.indent + "else:")
-            self.indent_num += 1  # For "else"
-            self.indent_num += 1  # Match the "si }" indent loss
+            self.template.append(self.indent_num * self.indent + "return tape, io_head_index")
         self.command_index += 1
 
     def __create_template_head(self):
@@ -158,6 +146,8 @@ class Compiler:
                               'if len(tape) <= 50:',
                               '    tape = tape + ["0" for _ in range(50 - len(tape))]\n',
                               "io_head_index = 2"])
+        self.template.append("from test_functional import *")
+        """
         # show_tape() function
         self.template.extend(["show_tape_index = 0",
                               "\n\ndef show_tape():",
@@ -169,9 +159,10 @@ class Compiler:
                               "    else:",
                               '        print("")',
                               "        show_tape_index = 0\n\n"])
+        """
         # Print initial tape
-        self.template.extend(['\nprint(f"Initial tape:")',
-                              'show_tape()\n'])
+        self.template.extend(['print(f"Initial tape:")',
+                              'show(io_head_index, tape)\n'])
 
     def __count_loop_global_var(self):
         """Count "boucle" to generate enough `in_loop_num = True` global variables"""
@@ -179,11 +170,12 @@ class Compiler:
         for i in range(boucle_count):
             self.template.append(f"in_loop_{i + 1} = True")
 
-    def __output_compiled_code(self, output_file):
-        # print final tape
+    def __output(self, output_file):
+        # Print final tape
         self.template += ['print(f"Final tape:")',
-                          'show_tape()\n']
-
+                          'show(io_head_index, tape)\n']
+        self.template.append('print(f"io_head_index: {io_head_index}, tape:{\'\'.join(tape)}")')
+        # Output to file
         final_code = "\n".join(self.template)
         with open(output_file, 'w') as file:
             file.write(final_code)
@@ -194,19 +186,28 @@ class Compiler:
             raise Exception(f"Syntax error")
         # Preparation
         self.__create_template_head()
-        self.__count_loop_global_var()
 
         # Compilation
-        commands = ["I", "0", "1", "D", "G", "si", "boucle", "fin", "}", "(0)", "(1)"]
-        for command in self.commands:
-            if command == "#":  # Won't parse anything after "#"
-                break
-            elif command in commands:
-                self.command2func[command]()
+        simple = {"I": "show", "0": "zero", "1": "one", "D": "right", "G": "left", "fin": "end_loop"}
+        function_chain = "io_head_index, tape = compose("
+        for i, command in enumerate(self.commands):
+            if command in simple.keys():
+                func = simple[command]
+                function_chain += f"{func}, "
+            elif command == "si":
+                function_chain += f"if_{self.commands[i + 1][1]}(compose("
+            elif command == "boucle":
+                function_chain += f"loop(compose("
+            elif command == "}":
+                function_chain += ")), "
+            elif command in ["(0)", "(1)", "#"]:
+                pass
             else:
                 raise Exception(f"Invalid command: {command}")
+        function_chain += ")(io_head_index, tape)\n"
+        self.template.append(function_chain)
 
-        self.__output_compiled_code(output_file)
+        self.__output(output_file)
 
 
 def main(script: Path):
