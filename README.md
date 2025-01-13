@@ -1,4 +1,4 @@
-# MTdv programming language v1.0
+# MTdv programming language v2.0
 
 ## General
 * MTdv compiler is an interpreter/compiler for a French turing-tarpit called "Machine de Turing de del Vigna". It allows compiling and executing scripts written in MTdv
@@ -26,5 +26,5 @@
   * `python ../exec/multiplicateur.1.py 3 5`
 
 ## Update journal:
-* This version corresponds to "Question I"
-* `return` eliminated
+* This version corresponds to "Question II"
+* Recursive functions can take arguments and no longer depend on global variables
