@@ -146,8 +146,7 @@ class Compiler:
                               'if len(tape) <= 50:',
                               '    tape = tape + ["0" for _ in range(50 - len(tape))]\n',
                               "io_head_index = 2"])
-        self.template.append("from test_functional import *")
-        """
+
         # show_tape() function
         self.template.extend(["show_tape_index = 0",
                               "\n\ndef show_tape():",
@@ -159,10 +158,10 @@ class Compiler:
                               "    else:",
                               '        print("")',
                               "        show_tape_index = 0\n\n"])
-        """
+
         # Print initial tape
         self.template.extend(['print(f"Initial tape:")',
-                              'show(io_head_index, tape)\n'])
+                              'show_tape()\n'])
 
     def __count_loop_global_var(self):
         """Count "boucle" to generate enough `in_loop_num = True` global variables"""
@@ -173,8 +172,7 @@ class Compiler:
     def __output(self, output_file):
         # Print final tape
         self.template += ['print(f"Final tape:")',
-                          'show(io_head_index, tape)\n']
-        self.template.append('print(f"io_head_index: {io_head_index}, tape:{\'\'.join(tape)}")')
+                          'show_tape()\n']
         # Output to file
         final_code = "\n".join(self.template)
         with open(output_file, 'w') as file:
@@ -188,24 +186,11 @@ class Compiler:
         self.__create_template_head()
 
         # Compilation
-        simple = {"I": "show", "0": "zero", "1": "one", "D": "right", "G": "left", "fin": "end_loop"}
-        function_chain = "io_head_index, tape = compose("
-        for i, command in enumerate(self.commands):
-            if command in simple.keys():
-                func = simple[command]
-                function_chain += f"{func}, "
-            elif command == "si":
-                function_chain += f"if_{self.commands[i + 1][1]}(compose("
-            elif command == "boucle":
-                function_chain += f"loop(compose("
-            elif command == "}":
-                function_chain += ")), "
-            elif command in ["(0)", "(1)", "#"]:
-                pass
+        for command in self.commands:
+            if command == "#":
+                break
             else:
-                raise Exception(f"Invalid command: {command}")
-        function_chain += ")(io_head_index, tape)\n"
-        self.template.append(function_chain)
+                self.command2func[command]()
 
         self.__output(output_file)
 
