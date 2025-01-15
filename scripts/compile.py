@@ -79,53 +79,101 @@ class Compiler:
                          '    tape += ["1" for _ in range(int(arg) + 1)] + ["0", "0"]\n',
                          'if len(tape) <= 50:',
                          '    tape = tape + ["0" for _ in range(50 - len(tape))]\n',
-                         'print(f"Initial tape:")',
-                         'print("".join(tape))\n',
                          "io_head_index = 2"])
-
+        # show_tape() function
+        template.extend(["show_tape_index = 0",
+                         "\n\ndef show_tape():",
+                         "    global tape, show_tape_index",
+                         "    if show_tape_index < len(tape):",
+                         '        print(tape[show_tape_index], end="")',
+                         "        show_tape_index += 1",
+                         "        show_tape()",
+                         "    else:",
+                         '        print("")',
+                         "        show_tape_index = 0\n\n"])
+        # Parse "boucle" for global variables
+        boucle_count = sum([1 for command in self.commands if command == "boucle"])
+        for i in range(boucle_count):
+            template.append(f"in_loop_{i + 1} = True")
+        # Print initial tape
+        template.extend(['\nprint(f"Initial tape:")',
+                         'show_tape()\n'])
         # Execution block
         indent_num = 0
         indent = "    "
+        command_stack = []
         loop_stack = []
+        loop_count = 0
         for i, command in enumerate(self.commands):
             if command == "#":  # Won't parse anything after "#"
                 break
             elif command == 'I':
-                template.append(indent_num * indent + 'print("".join(tape))')
+                template.append(indent_num * indent + 'show_tape()')
             elif command == '0':
                 template.append(indent_num * indent + 'tape[io_head_index] = "0"')
+                # template.append(indent_num * indent + 'print("".join([" "] * io_head_index + ["X"]) + "    Changed to 0")')
+                # template.append(indent_num * indent + 'show_tape()')
             elif command == '1':
                 template.append(indent_num * indent + 'tape[io_head_index] = "1"')
+                # template.append(indent_num * indent + 'print("".join([" "] * io_head_index + ["X"]) + "    Changed to 1")')
+                # template.append(indent_num * indent + 'show_tape()')
             elif command == 'D':
                 template.append(indent_num * indent + "io_head_index += 1")
+                # template.append(indent_num * indent + 'print(io_head_index)')
+                # template.append(indent_num * indent + 'print("".join([" "] * io_head_index + ["X"]))')
+                # template.append(indent_num * indent + 'show_tape()')
             elif command == 'G':
                 template.append(indent_num * indent + "io_head_index -= 1")
+                # template.append(indent_num * indent + 'print(io_head_index)')
+                # template.append(indent_num * indent + 'print("".join([" "] * io_head_index + ["X"]))')
+                # template.append(indent_num * indent + 'show_tape()')
             elif command == "si":
                 condition = self.commands[i + 1][1]  # "0" or "1"
                 template.append(indent_num * indent + f"if tape[io_head_index] == '{condition}':")
-                indent_num += 1
+                indent_num += 1  # "si" indent
+                command_stack.append(command)
             elif command in ["(0)", "(1)"]:  # Already parsed with "si"
                 pass
             elif command == "boucle":
-                template.append(indent_num * indent + "while True:")
-                indent_num += 1
-                loop_stack.append("boucle")
+                command_stack.append(command)
+                loop_count += 1
+                loop_stack.append(loop_count)
+                template.append(indent_num * indent + f"def loop_{loop_count}():")
+                indent_num += 1  # Function definition indent
+                template.append(indent_num * indent + f"global in_loop_{loop_count}, tape, io_head_index")
+                template.append(indent_num * indent + f"if in_loop_{loop_count}:")
+                indent_num += 1  # Function recursive-call indent
             elif command == "}":
-                indent_num -= 1
+                match_command = command_stack.pop()
+                if match_command == "si":
+                    indent_num -= 1
+                    continue
+                elif match_command == "boucle":
+                    current_loop_count = loop_stack.pop()
+                    template.append(indent_num * indent + f"loop_{current_loop_count}()")  # Recursive call
+                    indent_num -= 2
+                    template.append(indent_num * indent + f"loop_{current_loop_count}()")  # Function execution
+                else:
+                    raise Exception("Illegal command in command stack")
             elif command == "fin":
                 if not loop_stack:
                     template.append(indent_num * indent + "quit()")
-                template.append(indent_num * indent + "break")
+                else:
+                    # loop_stack.pop()
+                    current_loop_count = loop_stack[-1]
+                    # template.append(indent_num * indent + f"in_loop_{current_loop_count} = False")
+                    template.append(indent_num * indent + "return None")
             else:
                 raise Exception(f"Invalid command: {command}")
 
         template += ['print(f"Final tape:")',
-                     'print("".join(tape))\n']
+                     'show_tape()\n']
 
         final_code = "\n".join(template)
         with open(output_file, 'w') as file:
             file.write(final_code)
         print(f"MTdv code succesfully compiled to {output_file}")
+
 
 def main(script: Path):
     # Logger config
@@ -142,12 +190,10 @@ def main(script: Path):
 if __name__ == '__main__':
     import argparse
 
-    parser = argparse.ArgumentParser(description="A Python-based TS script compiler.")
-    parser.add_argument("-s", "--script",
-                        default=Path("../ts_scripts/addition.1.TS"),
+    parser = argparse.ArgumentParser(description="A Python-based TS script compiler")
+    parser.add_argument("script",
                         type=Path,
-                        metavar="",
-                        help="TS script to compile. Default set to addition script")
+                        help="TS script to compile")
     args = parser.parse_args()
 
     main(args.script)
