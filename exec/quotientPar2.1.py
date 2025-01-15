@@ -27,77 +27,61 @@ in_loop_1 = True
 in_loop_2 = True
 in_loop_3 = True
 in_loop_4 = True
-in_loop_5 = True
-in_loop_6 = True
 
 print(f"Initial tape:")
 show_tape()
 
-show_tape()
 def loop_1():
     global in_loop_1, tape, io_head_index
     if in_loop_1:
+        io_head_index += 1
+        tape[io_head_index] = "0"
+        io_head_index += 1
         if tape[io_head_index] == '0':
             in_loop_1 = False
         else:
-            io_head_index += 1
             loop_1()
     in_loop_1 = True
 loop_1()
+show_tape()
+io_head_index -= 1
 def loop_2():
     global in_loop_2, tape, io_head_index
     if in_loop_2:
+        io_head_index -= 1
+        show_tape()
         def loop_3():
             global in_loop_3, tape, io_head_index
             if in_loop_3:
-                io_head_index += 1
-                if tape[io_head_index] == '1':
+                io_head_index -= 1
+                if tape[io_head_index] == '0':
                     in_loop_3 = False
                 else:
                     loop_3()
             in_loop_3 = True
         loop_3()
-        tape[io_head_index] = "0"
-        io_head_index += 1
+        io_head_index -= 1
         if tape[io_head_index] == '0':
             in_loop_2 = False
         else:
+            io_head_index += 1
+            tape[io_head_index] = "1"
             def loop_4():
                 global in_loop_4, tape, io_head_index
                 if in_loop_4:
-                    io_head_index -= 1
-                    if tape[io_head_index] == '1':
+                    io_head_index += 1
+                    if tape[io_head_index] == '0':
                         in_loop_4 = False
                     else:
                         loop_4()
                 in_loop_4 = True
             loop_4()
-            io_head_index += 1
-            tape[io_head_index] = "1"
-            io_head_index += 1
+            io_head_index -= 1
+            tape[io_head_index] = "0"
             loop_2()
     in_loop_2 = True
 loop_2()
-def loop_5():
-    global in_loop_5, tape, io_head_index
-    if in_loop_5:
-        io_head_index -= 1
-        if tape[io_head_index] == '1':
-            in_loop_5 = False
-        else:
-            loop_5()
-    in_loop_5 = True
-loop_5()
-def loop_6():
-    global in_loop_6, tape, io_head_index
-    if in_loop_6:
-        io_head_index -= 1
-        if tape[io_head_index] == '0':
-            in_loop_6 = False
-        else:
-            loop_6()
-    in_loop_6 = True
-loop_6()
+io_head_index += 1
 io_head_index += 1
 show_tape()
 print(f"Final tape:")
