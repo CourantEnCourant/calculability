@@ -1,12 +1,28 @@
 """"""
-import logging
 from pathlib import Path
-from typing import Sequence, Optional
 
 
 class Compiler:
     def __init__(self):
         self.commands = []
+        self.template = []
+        self.indent_num = 0
+        self.indent = "    "
+        self.command_stack = []
+        self.loop_stack = []
+        self.loop_count = 0
+        self.command_index = 0
+        self.command2func = {"I": self.__evaluate_I,
+                             "0": self.__evaluate_0,
+                             "1": self.__evaluate_1,
+                             "D": self.__evaluate_D,
+                             "G": self.__evaluate_G,
+                             "si": self.__evaluate_si,
+                             "boucle": self.__evaluate_boucle,
+                             "fin": self.__evaluate_fin,
+                             "}": self.__evaluate_right_bracket,
+                             "(0)": self.__evaluate_si_0_or_1,
+                             "(1)": self.__evaluate_si_0_or_1}
 
     def read_clean(self, ts_file: Path):
         # Read and strip comment
@@ -14,7 +30,7 @@ class Compiler:
             file_lines = f.readlines()
             command_lines = []
             for line in file_lines:
-                line = self.__strip_comment(line)
+                line = Compiler.strip_comment(line)
                 command_lines.append(line)
             commands = " ".join(command_lines)
             commands = commands.split()
@@ -25,7 +41,8 @@ class Compiler:
                 raise Exception(f"Invalid command: {command}")
         self.commands = commands
 
-    def __strip_comment(self, command_line: str) -> str:
+    @staticmethod
+    def strip_comment(command_line: str) -> str:
         """Inner method for self.read_clean()"""
         new_line = command_line
         for i, symbol in enumerate(command_line):
@@ -38,17 +55,11 @@ class Compiler:
         if not self.commands:
             raise Exception(f"No commands found")
         flag = True
-        # Check if script ends by "#"
-        if self.commands[-1] != "#":
-            raise Exception('Script should end with "#"')
         # Check "si" followed by "(x)"
         for i, command in enumerate(self.commands):
-            try:
-                if command == "si" and self.commands[i + 1] not in ["(0)", "(1)"]:
-                    flag = False
-                    print('"si" and (x) not matching')
-            except Exception as e:
-                raise Exception(e)
+            if command == "si" and self.commands[i + 1] not in ["(0)", "(1)"]:
+                flag = False
+                print('"si" and (x) not matching')
         # Check curly brackets matching
         syntax_stack = []
         for command in self.commands:
@@ -59,7 +70,7 @@ class Compiler:
             if command == "}":
                 try:
                     syntax_stack.pop()
-                except Exception:
+                except IndexError:
                     flag = False
                     print("Curly brackets not matching")
         if syntax_stack:
@@ -67,121 +78,139 @@ class Compiler:
             print("Curly brackets not matching.")
         return flag
 
+    def __evaluate_I(self):
+        self.template.append(self.indent_num * self.indent + 'show_tape()')
+        self.command_index += 1
+
+    def __evaluate_0(self):
+        self.template.append(self.indent_num * self.indent + 'tape[io_head_index] = "0"')
+        self.command_index += 1
+
+    def __evaluate_1(self):
+        self.template.append(self.indent_num * self.indent + 'tape[io_head_index] = "1"')
+        self.command_index += 1
+
+    def __evaluate_D(self):
+        self.template.append(self.indent_num * self.indent + "io_head_index += 1")
+        self.command_index += 1
+
+    def __evaluate_G(self):
+        self.template.append(self.indent_num * self.indent + "io_head_index -= 1")
+        self.command_index += 1
+
+    def __evaluate_si(self):
+        condition = self.commands[self.command_index + 1][1]  # "0" or "1"
+        self.template.append(self.indent_num * self.indent + f"if tape[io_head_index] == '{condition}':")
+        self.indent_num += 1  # "si" indent
+        self.command_stack.append("si")
+        self.command_index += 1
+
+    def __evaluate_si_0_or_1(self):
+        """Already parsed by 'si'"""
+        self.command_index += 1
+
+    def __evaluate_right_bracket(self):
+        match_command = self.command_stack.pop()
+        if match_command == "si":
+            self.indent_num -= 1
+        elif match_command == "boucle":
+            current_loop_count = self.loop_stack.pop()
+            self.template.append(self.indent_num * self.indent + f"return loop_{current_loop_count}(tape, io_head_index)")  # Recursive call
+            self.indent_num -= 1
+            self.template.append(self.indent_num * self.indent + f"tape, io_head_index = loop_{current_loop_count}(tape, io_head_index)")  # Function execution
+        self.command_index += 1
+
+    def __evaluate_boucle(self):
+        self.command_stack.append("boucle")
+        self.loop_count += 1
+        self.loop_stack.append(self.loop_count)
+        self.template.append(self.indent_num * self.indent + f"def loop_{self.loop_count}(tape, io_head_index):")
+        self.indent_num += 1  # Function definition indent
+        self.command_index += 1
+
+    def __evaluate_fin(self):
+        if not self.loop_stack:
+            self.template.append(self.indent_num * self.indent + "quit()")
+        else:
+            self.template.append(self.indent_num * self.indent + "return tape, io_head_index")
+        self.command_index += 1
+
+    def __create_template_head(self):
+        # `sys` module
+        self.template = ["import sys",
+                         "args = sys.argv[1:]\n"]
+        # Generate tape
+        self.template.extend(['tape = ["0", "0"]',
+                              'for arg in args:',
+                              '    tape += ["1" for _ in range(int(arg) + 1)] + ["0", "0"]\n',
+                              'if len(tape) <= 50:',
+                              '    tape = tape + ["0" for _ in range(50 - len(tape))]\n',
+                              "io_head_index = 2"])
+        self.template.append("from test_functional import *")
+        """
+        # show_tape() function
+        self.template.extend(["show_tape_index = 0",
+                              "\n\ndef show_tape():",
+                              "    global tape, show_tape_index",
+                              "    if show_tape_index < len(tape):",
+                              '        print(tape[show_tape_index], end="")',
+                              "        show_tape_index += 1",
+                              "        show_tape()",
+                              "    else:",
+                              '        print("")',
+                              "        show_tape_index = 0\n\n"])
+        """
+        # Print initial tape
+        self.template.extend(['print(f"Initial tape:")',
+                              'show(io_head_index, tape)\n'])
+
+    def __count_loop_global_var(self):
+        """Count "boucle" to generate enough `in_loop_num = True` global variables"""
+        boucle_count = sum([1 for command in self.commands if command == "boucle"])
+        for i in range(boucle_count):
+            self.template.append(f"in_loop_{i + 1} = True")
+
+    def __output(self, output_file):
+        # Print final tape
+        self.template += ['print(f"Final tape:")',
+                          'show(io_head_index, tape)\n']
+        self.template.append('print(f"io_head_index: {io_head_index}, tape:{\'\'.join(tape)}")')
+        # Output to file
+        final_code = "\n".join(self.template)
+        with open(output_file, 'w') as file:
+            file.write(final_code)
+        print(f"MTdv code successfully compiled to {output_file}")
+
     def compile(self, output_file: Path):
         if not self.check_grammar():
             raise Exception(f"Syntax error")
-        # `sys` module
-        template = ["import sys",
-                    "args = sys.argv[1:]\n"]
-        # Generate tape
-        template.extend(['tape = ["0", "0"]',
-                         "for arg in args:",
-                         '    tape += ["1" for _ in range(int(arg) + 1)] + ["0", "0"]\n',
-                         'if len(tape) <= 50:',
-                         '    tape = tape + ["0" for _ in range(50 - len(tape))]\n',
-                         "io_head_index = 2"])
-        # show_tape() function
-        template.extend(["show_tape_index = 0",
-                         "\n\ndef show_tape():",
-                         "    global tape, show_tape_index",
-                         "    if show_tape_index < len(tape):",
-                         '        print(tape[show_tape_index], end="")',
-                         "        show_tape_index += 1",
-                         "        show_tape()",
-                         "    else:",
-                         '        print("")',
-                         "        show_tape_index = 0\n\n"])
-        # Parse "boucle" for global variables
-        boucle_count = sum([1 for command in self.commands if command == "boucle"])
-        for i in range(boucle_count):
-            template.append(f"in_loop_{i + 1} = True")
-        # Print initial tape
-        template.extend(['\nprint(f"Initial tape:")',
-                         'show_tape()\n'])
-        # Execution block
-        indent_num = 0
-        indent = "    "
-        command_stack = []
-        loop_stack = []
-        loop_count = 0
+        # Preparation
+        self.__create_template_head()
+
+        # Compilation
+        simple = {"I": "show", "0": "zero", "1": "one", "D": "right", "G": "left", "fin": "end_loop"}
+        function_chain = "io_head_index, tape = compose("
         for i, command in enumerate(self.commands):
-            if command == "#":  # Won't parse anything after "#"
-                break
-            elif command == 'I':
-                template.append(indent_num * indent + 'show_tape()')
-            elif command == '0':
-                template.append(indent_num * indent + 'tape[io_head_index] = "0"')
-                # template.append(indent_num * indent + 'print("".join([" "] * io_head_index + ["X"]) + "    Changed to 0")')
-                # template.append(indent_num * indent + 'show_tape()')
-            elif command == '1':
-                template.append(indent_num * indent + 'tape[io_head_index] = "1"')
-                # template.append(indent_num * indent + 'print("".join([" "] * io_head_index + ["X"]) + "    Changed to 1")')
-                # template.append(indent_num * indent + 'show_tape()')
-            elif command == 'D':
-                template.append(indent_num * indent + "io_head_index += 1")
-                # template.append(indent_num * indent + 'print(io_head_index)')
-                # template.append(indent_num * indent + 'print("".join([" "] * io_head_index + ["X"]))')
-                # template.append(indent_num * indent + 'show_tape()')
-            elif command == 'G':
-                template.append(indent_num * indent + "io_head_index -= 1")
-                # template.append(indent_num * indent + 'print(io_head_index)')
-                # template.append(indent_num * indent + 'print("".join([" "] * io_head_index + ["X"]))')
-                # template.append(indent_num * indent + 'show_tape()')
+            if command in simple.keys():
+                func = simple[command]
+                function_chain += f"{func}, "
             elif command == "si":
-                condition = self.commands[i + 1][1]  # "0" or "1"
-                template.append(indent_num * indent + f"if tape[io_head_index] == '{condition}':")
-                indent_num += 1  # "si" indent
-                command_stack.append(command)
-            elif command in ["(0)", "(1)"]:  # Already parsed with "si"
-                pass
+                function_chain += f"if_{self.commands[i + 1][1]}(compose("
             elif command == "boucle":
-                command_stack.append(command)
-                loop_count += 1
-                loop_stack.append(loop_count)
-                template.append(indent_num * indent + f"def loop_{loop_count}():")
-                indent_num += 1  # Function definition indent
-                template.append(indent_num * indent + f"global in_loop_{loop_count}, tape, io_head_index")
-                template.append(indent_num * indent + f"if in_loop_{loop_count}:")
-                indent_num += 1  # Function recursive-call indent
+                function_chain += f"loop(compose("
             elif command == "}":
-                match_command = command_stack.pop()
-                if match_command == "si":
-                    indent_num -= 1
-                    continue
-                elif match_command == "boucle":
-                    current_loop_count = loop_stack.pop()
-                    template.append(indent_num * indent + f"loop_{current_loop_count}()")  # Recursive call
-                    indent_num -= 2
-                    template.append(indent_num * indent + f"in_loop_{current_loop_count} = True")  # Set global variable back to allow next loop
-                    indent_num -= 1
-                    template.append(indent_num * indent + f"loop_{current_loop_count}()")  # Function execution
-                else:
-                    raise Exception("Illegal command in command stack")
-            elif command == "fin":
-                if not loop_stack:
-                    template.append(indent_num * indent + "quit()")
-                else:
-                    current_loop_count = loop_stack[-1]
-                    template.append(indent_num * indent + f"in_loop_{current_loop_count} = False")
-                    # template.append(indent_num * indent + "return None")
-                    indent_num -= 1
-                    template.append(indent_num * indent + "else:")
-                    indent_num += 2
+                function_chain += ")), "
+            elif command in ["(0)", "(1)", "#"]:
+                pass
             else:
                 raise Exception(f"Invalid command: {command}")
+        function_chain += ")(io_head_index, tape)\n"
+        self.template.append(function_chain)
 
-        template += ['print(f"Final tape:")',
-                     'show_tape()\n']
-
-        final_code = "\n".join(template)
-        with open(output_file, 'w') as file:
-            file.write(final_code)
-        print(f"MTdv code succesfully compiled to {output_file}")
+        self.__output(output_file)
 
 
 def main(script: Path):
-    # Logger config
-    logging.basicConfig(level=logging.INFO)
     # Compiler preparation
     compiler = Compiler()
     compiler.read_clean(script)
